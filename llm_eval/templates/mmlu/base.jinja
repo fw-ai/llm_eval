@@ -1,0 +1,13 @@
+{% for shot in shots %}{{ shot["question"] }}
+A. {{ shot["choices"][0] }}
+B. {{ shot["choices"][1] }}
+C. {{ shot["choices"][2] }}
+D. {{ shot["choices"][3] }}
+Answer: {{ ["A", "B", "C", "D"][shot["answer"]] }}
+
+{% endfor %}{{ task["question"] }}
+A. {{ task["choices"][0] }}
+B. {{ task["choices"][1] }}
+C. {{ task["choices"][2] }}
+D. {{ task["choices"][3] }}
+Answer:
