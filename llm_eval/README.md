@@ -105,3 +105,20 @@ python -m llm_eval.analyzer analyzer fastchat.jsonl --task generic
 ```bash
 python -m llm_eval.analyzer diff fp16.jsonl fp8.jsonl
 ```
+
+### Custom dataset
+
+To evaluate KLD over custom prompts, populate data/DATASET/test.jsonl.
+
+Each row should be a json in the following form
+
+```
+{"id": 1, "category": "generic", "prompt": "How can I improve my time management skills?"}
+```
+
+Please see data/fastchat/test.jsonl for an example. Then can pass in 
+
+```
+python -m llm_eval.generator url generic -o fp16.jsonl --max-tokens 256 --dataset DATASET
+```
+
