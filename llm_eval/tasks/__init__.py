@@ -7,7 +7,7 @@ from .generic import GenericTask
 from .mmlu import MmluTask
 from .replay import ReplayTask
 from .humaneval import HumanevalTask
-
+from .chat import ChatTask
 
 def get_task(
     name: str,
@@ -27,6 +27,8 @@ def get_task(
         return GenericTask(task_args["generic_ds_name"], ds_cache_dir, prompt_style)
     elif cls == ReplayTask:
         return ReplayTask(task_args["replay_file"])
+    elif cls == ChatTask:
+        return ChatTask(task_args["dataset_file"], task_args["tokenizer_dir"])
     else:
         raise ValueError(f"Unsupported task {name}")
 
@@ -40,5 +42,7 @@ def get_task_class(name: str) -> Type[Task]:
         return GenericTask
     elif name == "replay":
         return ReplayTask
+    elif name == "chat":
+        return ChatTask
     else:
         raise ValueError(f"Unsupported task {name}")
