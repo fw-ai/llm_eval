@@ -1,4 +1,4 @@
-from typing import IO, List
+from typing import IO, List, Iterator
 import argparse
 from dataclasses import dataclass
 import json
@@ -7,6 +7,7 @@ import logging
 import os
 import time
 import functools
+import itertools
 
 import tqdm
 import httpx
@@ -57,6 +58,8 @@ def _get_task(args: GeneratorArgs) -> Task:
     task_args = {
         "generic_ds_name": args.generic_ds_name,
         "replay_file": args.replay_file,
+        "dataset_file": args.dataset_file,
+        "tokenizer_dir": args.tokenizer_dir,
     }
     return get_task(
         name=args.task_name,
@@ -66,10 +69,10 @@ def _get_task(args: GeneratorArgs) -> Task:
     )
 
 
-def _get_prompts(task: Task, args: GeneratorArgs) -> List[Prompt]:
-    prompts = list(task.get_prompts())
+def _get_prompts(task: Task, args: GeneratorArgs) -> Iterator[Prompt]:
+    prompts = task.get_prompts()
     if args.limit is not None:
-        prompts = prompts[: args.limit]
+        prompts = itertools.islice(prompts, args.limit)
     return prompts
 
 
@@ -116,8 +119,7 @@ async def _send_prompts_url(args: GeneratorArgs, f: IO):
         if val is not None:
             rdata[rname] = val
 
-    prompts = list(prompts)
-    pbar = tqdm.trange(len(prompts))
+    pbar = tqdm.tqdm()
     prompts_iter = iter(prompts)
     pending_prompts = {}
     while True:
@@ -136,6 +138,11 @@ async def _send_prompts_url(args: GeneratorArgs, f: IO):
             }
 
             _set_param(rdata, "logprobs")
+            # Use new logprobs API.
+            if "logprobs" in rdata:
+                rdata["top_logprobs"] = rdata["logprobs"]
+                del rdata["logprobs"]
+                rdata["logprobs"] = True
             _set_param(rdata, "max_tokens")
             _set_param(rdata, "echo")
             _set_param(rdata, "stop", "stop_words")
@@ -162,6 +169,7 @@ async def _send_prompts_url(args: GeneratorArgs, f: IO):
             response["labels"] = prompt.labels
             responses.append((id, response))
         _dump_responses()
+    pbar.close()
 
     _dump_responses()
 
@@ -515,6 +523,19 @@ def main():
         required=True,
         type=str,
         help="Responses file to replay",
+    )
+    chat_parser = _add_task(task_parsers, "chat")
+    chat_parser.add_argument(
+        "-d",
+        "--dataset-file",
+        required=True,
+        type=str,
+    )
+    chat_parser.add_argument(
+        "-t",
+        "--tokenizer-dir",
+        required=True,
+        type=str,
     )
 
     parser.parse_args(namespace=args)

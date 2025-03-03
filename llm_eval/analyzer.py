@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Tuple
 import itertools
 import math
+import os
 
 import numpy
 from tabulate import tabulate
@@ -60,7 +61,9 @@ class TokenInfos:
 
 
 def _compute_diff(
-    responses_a: List, responses_b: List, verbose_mismatch: bool = False
+    responses_a: List,
+    responses_b: List,
+    verbose_mismatch: bool = False,
 ) -> Diff:
     assert len(responses_a) == len(responses_b), "Different number of responses"
 
@@ -71,10 +74,16 @@ def _compute_diff(
         pf_a, gen_a = _process_response(resp_a)
         pf_b, gen_b = _process_response(resp_b)
         # Assert that responses have identical prompts and generation lengths.
-        assert (pf_a is None) == (pf_b is None), "Different prompt"
+        assert (pf_a is None) == (pf_b is None), f"Different prompt"
         if pf_a is not None:
-            assert pf_a.tokens == pf_b.tokens, "Different prompt"
-        assert len(gen_a.tokens) == len(gen_b.tokens), "Different number of generated tokens"
+            prompts_match = pf_a.tokens == pf_b.tokens
+            if not prompts_match:
+                print(f"Different prompt #{i}")
+                if os.environ.get("SKIP_PROMPT_CHECK", "0") != "1":
+                    assert prompts_match, f"Different prompt #{i}: \n{pf_a.tokens}\n vs \n{pf_b.tokens}"
+        assert len(gen_a.tokens) == len(
+            gen_b.tokens
+        ), "Different number of generated tokens"
 
         if pf_a.top_lps is not None and pf_b.top_lps is not None:
             for top_lp_a, top_lp_b in zip(pf_a.top_lps, pf_b.top_lps):
@@ -111,13 +120,30 @@ def _compute_diff(
     return diff
 
 
-def _process_response(resp) -> Tuple[TokenInfos | None, TokenInfos]:
+def _process_response(
+    resp
+) -> Tuple[TokenInfos | None, TokenInfos]:
     choice = resp["choices"][0]
     logprobs = choice.get("logprobs")
     assert logprobs is not None
-    tokens = logprobs["tokens"]
-    lps = logprobs["token_logprobs"]
-    top_lps = logprobs.get("top_logprobs")
+
+    if "tokens" in logprobs:
+        # Legacy logprobs format
+        tokens = logprobs["tokens"]
+        lps = logprobs["token_logprobs"]
+        top_lps = logprobs.get("top_logprobs")
+    else:
+        # New logprobs format
+        tokens = []
+        lps = []
+        top_lps = []
+        for lp_content in logprobs["content"]:
+            tokens.append(lp_content["token"])
+            lps.append(lp_content["logprob"])
+            top_lp = {}
+            for top_lp_content in lp_content["top_logprobs"]:
+                top_lp[top_lp_content["token"]] = top_lp_content["logprob"]
+            top_lps.append(top_lp)
 
     pf_len = resp["usage"]["prompt_tokens"]
     gen_len = resp["usage"]["completion_tokens"]
@@ -152,8 +178,10 @@ def _compute_divergence(
     else:
         matches = 0
 
-    common_tokens = set(a_top_lps.keys()).intersection(b_top_lps.keys())
-
+    common_tokens = []
+    for k in a_top_lps.keys():
+        if k in b_top_lps:
+            common_tokens.append(k)
     p = _construct_approx_distribution(common_tokens, a_top_lps)
     q = _construct_approx_distribution(common_tokens, b_top_lps)
 
@@ -214,7 +242,11 @@ def _run_diff_command(args):
     responses_a = _load_responses(args.diff_a, args)
     responses_b = _load_responses(args.diff_b, args)
 
-    diff = _compute_diff(responses_a, responses_b, args.verbose_mismatch)
+    diff = _compute_diff(
+        responses_a,
+        responses_b,
+        verbose_mismatch=args.verbose_mismatch,
+    )
     table = [
         ["Prefill KLD", diff.prefill.kld],
         ["Prefill Beta", diff.prefill.beta],
@@ -288,14 +320,8 @@ def main():
     analyze_parser.add_argument(
         "-v", "--verbose", action=argparse.BooleanOptionalAction
     )
-    analyze_parser.add_argument(
-        "--task",
-        "-t",
-        type=str,
-        default="generic"
-    )
+    analyze_parser.add_argument("--task", "-t", type=str, default="generic")
     analyze_parser.add_argument("--limit", "-l", type=int)
-
     args = parser.parse_args()
 
     if args.command == "diff":

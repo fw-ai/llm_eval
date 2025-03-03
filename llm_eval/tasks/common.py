@@ -45,7 +45,12 @@ def load_template(task_name: str, prompt_style: str | None = None):
 
 def _perplexity(resp):
     choice = resp["choices"][0]
-    logprobs = choice["logprobs"]["token_logprobs"]
+    if "token_logprobs" in choice["logprobs"]:
+        logprobs = choice["logprobs"]["token_logprobs"]
+    else:
+        logprobs = []
+        for lp_content in choice["logprobs"]["content"]:
+            logprobs.append(lp_content["logprob"])
     return numpy.exp(-numpy.mean(logprobs))
 
 
