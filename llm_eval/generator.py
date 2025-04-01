@@ -155,7 +155,7 @@ async def _send_prompts_url(args: GeneratorArgs, f: IO):
             if args.model_name:
                 rdata["model"] = args.model_name
 
-            request_aws.add(_post(curr_in_id, rdata))
+            request_aws.add(asyncio.create_task(_post(curr_in_id, rdata)))
             pending_prompts[curr_in_id] = prompt
             curr_in_id += 1
 
