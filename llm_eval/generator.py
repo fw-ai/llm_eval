@@ -52,6 +52,8 @@ class GeneratorArgs:
     # Task-specific.
     generic_ds_name: str | None = None
     replay_file: str | None = None
+    dataset_file: str | None = None
+    tokenizer_dir: str | None = None
 
 
 def _get_task(args: GeneratorArgs) -> Task:
