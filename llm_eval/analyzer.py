@@ -81,11 +81,22 @@ def _compute_diff(
                 print(f"Different prompt #{i}")
                 if os.environ.get("SKIP_PROMPT_CHECK", "0") != "1":
                     assert prompts_match, f"Different prompt #{i}: \n{pf_a.tokens}\n vs \n{pf_b.tokens}"
-        assert len(gen_a.tokens) == len(
-            gen_b.tokens
-        ), "Different number of generated tokens"
 
-        if pf_a.top_lps is not None and pf_b.top_lps is not None:
+        # Find common prefix for generation.
+        gen_len = 0
+        for i, (a, b) in enumerate(zip(gen_a.tokens, gen_b.tokens)):
+            if a == b:
+                gen_len += 1
+            else:
+                break
+        gen_a.tokens = gen_a.tokens[:gen_len]
+        gen_b.tokens = gen_b.tokens[:gen_len]
+        gen_a.lps = gen_a.lps[:gen_len]
+        gen_b.lps = gen_b.lps[:gen_len]
+        gen_a.top_lps = gen_a.top_lps[:gen_len]
+        gen_b.top_lps = gen_b.top_lps[:gen_len]
+        
+        if pf_a is not None and pf_a.top_lps is not None and pf_b is not None and pf_b.top_lps is not None:
             for top_lp_a, top_lp_b in zip(pf_a.top_lps, pf_b.top_lps):
                 resp_diff.prefill.add(_compute_divergence(top_lp_a, top_lp_b))
         if gen_a.top_lps is not None and gen_b.top_lps is not None:

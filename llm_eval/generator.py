@@ -92,8 +92,9 @@ async def _send_prompts_url(args: GeneratorArgs, f: IO):
         headers["Authorization"] = f"Bearer {args.auth_token}"
 
     async def _post(id, rdata):
+        path = "/v1/chat/completions" if "messages" in rdata else "/v1/completions"
         res = await client.post(
-            args.host + "/v1/completions", json=rdata, headers=headers
+            args.host + path, json=rdata, headers=headers, timeout=60*5,
         )
         return id, res.json()
 
@@ -133,18 +134,25 @@ async def _send_prompts_url(args: GeneratorArgs, f: IO):
                 break
 
             rdata = {
-                "prompt": prompt.text,
                 "stream": False,
                 "temperature": 0,
                 "raw_output": True,
             }
+            if prompt.messages:
+                rdata["messages"] = prompt.messages
+            else:
+                rdata["prompt"] = prompt.text
 
             _set_param(rdata, "logprobs")
             # Use new logprobs API.
             if "logprobs" in rdata:
-                rdata["top_logprobs"] = rdata["logprobs"]
-                del rdata["logprobs"]
-                rdata["logprobs"] = True
+                if rdata["logprobs"] > 0:
+                    rdata["top_logprobs"] = rdata["logprobs"]
+                    del rdata["logprobs"]
+                    rdata["logprobs"] = True
+                else:
+                    del rdata["logprobs"]
+
             _set_param(rdata, "max_tokens")
             _set_param(rdata, "echo")
             _set_param(rdata, "stop", "stop_words")
@@ -536,7 +544,6 @@ def main():
     chat_parser.add_argument(
         "-t",
         "--tokenizer-dir",
-        required=True,
         type=str,
     )
 
