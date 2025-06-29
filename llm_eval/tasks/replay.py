@@ -15,8 +15,6 @@ class ReplayTask(Task):
                 choice = resp["choices"][0]
                 n_prompt = resp["usage"]["prompt_tokens"]
 
-                tokens = choice["logprobs"]["tokens"]
-
                 prompt_tokens = choice["raw_output"]["prompt_token_ids"]
                 all_tokens = [
                     x["token_id"]
